@@ -99,6 +99,11 @@ canvas{display:block;width:100%;height:190px;touch-action:manipulation;cursor:po
 .tales p{margin:4px 0 0;font-size:15px}
 .total{font-family:"Song Myung",serif;font-size:56px;line-height:1;margin:18px 0 4px;font-variant-numeric:tabular-nums}
 .rank{font-size:19px;margin:0 0 6px}
+.lb{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.lb li{display:grid;grid-template-columns:2.2em 1fr auto;gap:8px;padding:9px 2px;border-bottom:1px solid var(--line);align-items:baseline}
+.lb .rk{color:var(--ink-soft)}
+.lb .sc{font-weight:700;font-variant-numeric:tabular-nums}
+.lb li.me{background:color-mix(in srgb,var(--wood-light) 35%,transparent)}
 .brag{background:var(--paper);border-radius:6px;padding:16px 16px 14px;margin:18px 0 4px;white-space:pre-wrap;font-size:15px;line-height:1.75;
   border-left:4px solid var(--wood-dark)}
 #shareBox{width:100%;font:inherit;font-size:15px;padding:12px;border:1.5px solid var(--ink);border-radius:4px;background:var(--paper);color:var(--ink);resize:none;margin-top:8px}
@@ -123,10 +128,14 @@ canvas{display:block;width:100%;height:190px;touch-action:manipulation;cursor:po
 
   <label class="nick" for="nick">이름</label>
   <div class="row">
-    <input id="nick" type="text" maxlength="10" placeholder="자랑 글에 들어갈 이름" autocomplete="off">
+    <input id="nick" type="text" maxlength="10" placeholder="이름을 입력해 주세요" autocomplete="off">
     <button class="btn solid" id="startBtn">가게 열기</button>
   </div>
   <p class="muted" id="dayNote"></p>
+
+  <h2>오늘의 장인 명부</h2>
+  <ol class="lb" id="lbStart"></ol>
+  <p class="muted" id="lbStatusStart">명부를 불러오는 중…</p>
 
 </section>
 
@@ -164,6 +173,10 @@ canvas{display:block;width:100%;height:190px;touch-action:manipulation;cursor:po
   </div>
   <p class="muted" id="shareStatus" aria-live="polite"></p>
   <textarea id="shareBox" readonly hidden rows="5"></textarea>
+  <p class="muted" id="saveStatus"></p>
+  <h2>오늘의 장인 명부</h2>
+  <ol class="lb" id="lbEnd"></ol>
+  <p class="muted" id="lbStatusEnd"></p>
 </section>
 
 </main>
@@ -180,6 +193,18 @@ canvas{display:block;width:100%;height:190px;touch-action:manipulation;cursor:po
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyD2rVG_dC5vQ2pGjEaLsC4MtIUS67DIyKc",
+  authDomain: "bangmangi-d76f0.firebaseapp.com",
+  projectId: "bangmangi-d76f0",
+  storageBucket: "bangmangi-d76f0.firebasestorage.app",
+  messagingSenderId: "535035855112",
+  appId: "1:535035855112:web:46ec40bf578481003b6cbd"
+};
+</script>
 <script>
 (function(){
 "use strict";
@@ -376,6 +401,7 @@ function endDay(){
   $("bragCard").textContent = lastShare.replace("\n" + SHARE_URL, "");
   $("shareStatus").textContent = ""; $("shareBox").hidden = true;
   show("result");
+  saveScore(total, avgQ);
 }
 $("againBtn").addEventListener("click", () => show("start"));
 const SHARE_URL = location.origin + location.pathname;
@@ -552,6 +578,57 @@ document.addEventListener("keydown", e => {
   if (e.code === "Space" && !$("play").hidden && $("sheet").hidden){ e.preventDefault(); cut(); }
 });
 
+
+/* ---------- shared leaderboard (Firebase) ---------- */
+let fdb = null, lbRows = [], devId = "";
+try { devId = localStorage.getItem("bm-dev") || ""; if (!devId){ devId = Math.random().toString(36).slice(2,12); localStorage.setItem("bm-dev", devId); } }
+catch(e){ devId = Math.random().toString(36).slice(2,12); }
+const myDoc = DAY + "_" + devId;
+function setLbStatus(msg){ $("lbStatusStart").textContent = msg; $("lbStatusEnd").textContent = msg; }
+function renderLb(){
+  for (const id of ["lbStart","lbEnd"]){
+    const ol = $(id); ol.textContent = "";
+    lbRows.forEach((row, i) => {
+      const li = document.createElement("li"); if (row.id === myDoc) li.className = "me";
+      const a = document.createElement("span"); a.className = "rk"; a.textContent = (i+1) + ".";
+      const b = document.createElement("span"); b.textContent = String(row.name || "이름 없음").slice(0,10) + "  ";
+      const sm = document.createElement("span"); sm.className = "muted"; sm.textContent = "평균 " + (row.avgQ ?? "-") + "점";
+      b.append(sm);
+      const c = document.createElement("span"); c.className = "sc"; c.textContent = (row.score|0) + "닢";
+      li.append(a, b, c); ol.append(li);
+    });
+  }
+  setLbStatus(lbRows.length ? "" : "오늘은 아직 아무도 기록을 남기지 않았어요. 첫 장인이 되어 보세요.");
+}
+(function lbInit(){
+  try {
+    const cfg = (typeof firebaseConfig !== "undefined") ? firebaseConfig : null;
+    if (!window.firebase || !cfg || !cfg.apiKey){ setLbStatus("명부 서버가 아직 연결되지 않았어요."); return; }
+    firebase.initializeApp(cfg);
+    fdb = firebase.firestore();
+    fdb.collection("scores").where("day", "==", DAY).onSnapshot(snap => {
+      lbRows = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+        .sort((a, b) => (b.score|0) - (a.score|0)).slice(0, 30);
+      renderLb();
+    }, () => setLbStatus("명부를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요."));
+  } catch(e){ setLbStatus("명부를 불러오지 못했어요."); }
+})();
+async function saveScore(total, avgQ){
+  const st = $("saveStatus");
+  if (!fdb){ st.textContent = ""; return; }
+  st.textContent = "명부에 기록하는 중…";
+  try {
+    const ref = fdb.collection("scores").doc(myDoc);
+    const snap = await ref.get();
+    const prev = snap.exists ? (snap.data().score|0) : -1;
+    if (total > prev){
+      await ref.set({ name: ($("nick").value.trim() || "이름 없음").slice(0,10), score: Math.min(1000, Math.round(total)), avgQ: Math.round(avgQ), day: DAY, at: new Date().toISOString() });
+      st.textContent = prev < 0 ? "오늘의 명부에 이름을 올렸어요." : "오늘 최고 기록을 새로 썼어요! (이전 " + prev + "닢)";
+    } else {
+      st.textContent = "오늘 내 최고 기록은 " + prev + "닢이에요.";
+    }
+  } catch(e){ st.textContent = "기록을 저장하지 못했어요."; }
+}
 })();
 </script>
 </body>
