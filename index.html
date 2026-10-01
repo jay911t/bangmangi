@@ -183,7 +183,7 @@ canvas{display:block;width:100%;height:190px;touch-action:manipulation;cursor:po
 <script>
 (function(){
 "use strict";
-const N = 22, STEP = 0.085, PER_DAY = 5, GRACE = 8;
+const N = 22, STEP = 0.085, PER_DAY = 5, GRACE = 10;
 const $ = id => document.getElementById(id);
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -197,19 +197,19 @@ const SHAPES = {
 
 /* ---------- customers ---------- */
 const POOL = [
-  { who:"회의에 늦은 산업은행 직원", icon:"🏢", short:"산은 직원", pat:17, shape:"dadumi",
+  { who:"회의에 늦은 산업은행 직원", icon:"🏢", short:"산은 직원", pat:20, shape:"dadumi",
     lines:["다듬이 방망이 하나요. 회의 들어가기 전에 받아야 해요.","회의 5분 전인데요…","부장님이 회의실에서 기다리세요!","그냥 주세요, 이미 늦었어요!"],
     happy:"산은 직원은 방망이를 노트북 가방에 꽂고 뛰어갔다.", mad:"산은 직원은 회의 자료와 방망이를 한꺼번에 끌어안고 사라졌다." },
-  { who:"중식대기하러 가야 하는 수출입은행 직원", icon:"🍱", short:"수은 직원", pat:22, shape:"ppallae",
+  { who:"중식대기하러 가야 하는 수출입은행 직원", icon:"🍱", short:"수은 직원", pat:26, shape:"ppallae",
     lines:["빨래 방망이 하나요. 중식대기 들어가기 전에 받아야 해요.","다들 점심 먹으러 나가는데 저는 들어가야 해요…","자리 비우면 안 되는데!","그냥 주세요, 사무실 전화 울려요!"],
     happy:"수은 직원은 김밥 한 줄과 방망이를 들고 사무실로 돌아갔다.", mad:"수은 직원은 배고픈 얼굴로 방망이를 받아 갔다." },
-  { who:"질의서 마감에 쫓기는 국회 보좌관", icon:"🏛️", short:"국회 보좌관", pat:28, shape:"ppallae",
+  { who:"질의서 마감에 쫓기는 국회 보좌관", icon:"🏛️", short:"국회 보좌관", pat:34, shape:"ppallae",
     lines:["빨래 방망이 하나요. 질의서 마감 전에 받아야 해요.","질의서가 아직 반밖에 안 됐는데요…","의원님이 찾으세요!","더는 못 기다려요, 주세요!"],
     happy:"보좌관은 방망이를 들고 국회 쪽으로 성큼성큼 걸어갔다.", mad:"보좌관은 발을 동동 구르며 방망이를 받아 갔다." },
-  { who:"순복음교회 목사님", icon:"⛪", short:"목사님", pat:40, shape:"hongdu",
+  { who:"순복음교회 목사님", icon:"⛪", short:"목사님", pat:48, shape:"hongdu",
     lines:["홍두깨 하나 부탁드립니다. 천천히 하셔도 됩니다.","허허, 기다리는 것도 은혜지요.","저녁 예배 준비가 있어서… 조금만 서둘러 주시겠어요?","이제는 정말 가 봐야겠습니다."],
     happy:"목사님은 홍두깨를 받아 들고 축복의 말을 남긴 뒤 교회 쪽으로 걸어갔다.", mad:"목사님은 그래도 웃으며 방망이를 받아 갔다." },
-  { who:"퇴근하는 수출입은행 은행장님", icon:"🚘", short:"은행장님", pat:34, shape:"dadumi",
+  { who:"퇴근하는 수출입은행 은행장님", icon:"🚘", short:"은행장님", pat:41, shape:"dadumi",
     lines:["다듬이 방망이 하나 부탁하오. 퇴근길이오.","기사님이 차를 대 놓고 기다리는데…","저녁 일정이 있소. 조금만 서둘러 주시오.","허허, 됐소. 그대로 주시오."],
     happy:"은행장님은 방망이를 들고 흡족한 얼굴로 차에 올랐다.", mad:"은행장님은 헛기침을 하며 방망이를 받아 들고 차에 올랐다." }
 ];
@@ -281,7 +281,7 @@ function setLine(k){
 
 function quality(){
   let e = 0, oc = 0;
-  for (let i=0;i<N;i++){ const d = r[i]-t[i]; if (d >= 0) e += d; else { e += -d*2.5; } if (over[i]) oc++; }
+  for (let i=0;i<N;i++){ const d = r[i]-t[i]; if (d >= 0) e += d; else { e += -d*2; } if (over[i]) oc++; }
   const q = 100*(1 - (e/N)/0.33);
   return { q: Math.max(0, Math.min(100, Math.round(q))), oc };
 }
@@ -299,7 +299,7 @@ function cut(){
     const before = r[i];
     r[i] = Math.max(0.08, r[i] - amt);
     removed += before - r[i];
-    if (r[i] < t[i] - 0.03) over[i] = true;
+    if (r[i] < t[i] - 0.045) over[i] = true;
   }
   chip();
   if (!reduceMotion && removed > 0) spawnChips(m);
@@ -375,6 +375,7 @@ function endDay(){
   lastShare = buildBrag(total, avgQ, title);
   $("bragCard").textContent = lastShare.replace("\n" + SHARE_URL, "");
   $("shareStatus").textContent = ""; $("shareBox").hidden = true;
+  show("result");
 }
 $("againBtn").addEventListener("click", () => show("start"));
 const SHARE_URL = location.origin + location.pathname;
@@ -405,8 +406,8 @@ function buildBrag(total, avgQ, title){
     ...records.map(x => x.c.icon + " " + sq(x) + " " + x.q + "점 · " + tag(x)),
     "",
     "💰 " + total + "닢 · 칭호 「" + rank + "」",
-    "🏆 오늘의 명작: " + best.c.short + " (" + best.q + "점)",
-    worst !== best && worst.q < 85 ? "💥 오늘의 흑역사: " + worst.c.short + " (" + worst.q + "점)" : "✨ 흑역사 없음. 한 자루도 버릴 게 없었다",
+    best.q >= 60 ? "🏆 오늘의 명작: " + best.c.short + " (" + best.q + "점)" : "🏆 오늘의 명작: 없음. 전부 쪼개져 돌아왔다",
+    worst.q < 85 ? "💥 오늘의 흑역사: " + worst.c.short + " (" + worst.q + "점)" : "✨ 흑역사 없음. 한 자루도 버릴 게 없었다",
     "",
     "노인 왈, “" + QUOTES[rank] + "”",
     "",
@@ -522,7 +523,7 @@ function loop(now){
   const dt = Math.min(0.05, (now - last)/1000); last = now;
   if (phase === "carving"){
     const c = customers[ci];
-    markerPhase += dt * (2*Math.PI/2.3);
+    markerPhase += dt * (2*Math.PI/2.7);
     cooldown = Math.max(0, cooldown - dt);
     if (patLeft > 0){ patLeft = Math.max(0, patLeft - dt); }
     else { grace -= dt; if (grace <= 0) handOver(true); }
